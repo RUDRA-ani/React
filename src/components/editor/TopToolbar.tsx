@@ -8,54 +8,50 @@ import {
   Search,
   Settings,
   Square,
+  Trash2, // Replaced 'Delete' with standard 'Trash2' icon from Lucide
   Undo2,
   ZoomIn,
   ZoomOut,
-  Delete
 } from "lucide-react";
 
 import { useCircuitStore } from "@/store";
-
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
 function TopToolbar() {
-
   const undo = useCircuitStore((state) => state.undo);
   const redo = useCircuitStore((state) => state.redo);
-  const deleteSelected = useCircuitStore(
-  (state) => state.deleteSelected
-);
+  const deleteSelected = useCircuitStore((state) => state.deleteSelected);
+
+  const runCircuit = useCircuitStore((state) => state.runCircuit);
+  const stopCircuit = useCircuitStore((state) => state.stopCircuit);
+  const resetCircuit = useCircuitStore((state) => state.resetCircuit);
+
+  // Optional: Track running state to conditionally toggle button states
+  const isRunning = useCircuitStore((state) => state.isRunning);
+
   return (
     <header className="flex h-14 items-center justify-between border-b border-zinc-800 bg-zinc-950 px-4">
-
       {/* Left */}
       <div className="flex items-center gap-2">
-
-        <SidebarTrigger className="text-white hover:bg-zinc-800 rounded-md" />
-
+        <SidebarTrigger className="rounded-md text-white hover:bg-zinc-800" />
         <h1 className="mr-6 text-sm font-semibold text-zinc-100">
           Logic Studio
         </h1>
-
-        <ToolbarButton icon={<FolderOpen size={18} />} label="Open" />
-        <ToolbarButton icon={<Save size={18} />} label="Save" />
-        <ToolbarButton icon={<Download size={18} />} label="Export" />
       </div>
 
       {/* Center */}
-
       <div className="flex items-center gap-2">
+        <ToolbarButton
+          icon={<Undo2 size={18} />}
+          label="Undo"
+          onClick={undo}
+        />
+        <ToolbarButton
+          icon={<Redo2 size={18} />}
+          label="Redo"
+          onClick={redo}
+        />
 
-<ToolbarButton
-  icon={<Undo2 size={18} />}
-  label="Undo"
-  onClick={undo}
-/>        
-<ToolbarButton
-  icon={<Redo2 size={18} />}
-  label="Redo"
-  onClick={redo}
-/>
         <Divider />
 
         <ToolbarButton icon={<ZoomOut size={18} />} label="Zoom Out" />
@@ -64,27 +60,40 @@ function TopToolbar() {
 
         <Divider />
 
-        <ToolbarButton icon={<Play size={18} />} label="Run" />
-        <ToolbarButton icon={<Square size={18} />} label="Stop" />
-        <ToolbarButton icon={<RotateCcw size={18} />} label="Reset" />
-<ToolbarButton
-  icon={<Delete size={18} />}
-  label="Delete"
-  onClick={deleteSelected}
-/>
+        <ToolbarButton
+          icon={<Play size={18} />}
+          label="Run"
+          onClick={runCircuit}
+          className={isRunning ? "text-green-400" : ""}
+        />
+
+        <ToolbarButton
+          icon={<Square size={18} className="fill-current" />}
+          label="Stop"
+          onClick={() => {
+            if (typeof stopCircuit === "function") {
+              stopCircuit();
+            }
+          }}
+        />
+
+        <ToolbarButton
+          icon={<RotateCcw size={18} />}
+          label="Reset"
+          onClick={resetCircuit}
+        />
+
+        <ToolbarButton
+          icon={<Trash2 size={18} />}
+          label="Delete"
+          onClick={deleteSelected}
+        />
       </div>
 
       {/* Right */}
-
       <div className="flex items-center gap-2">
-
-        <ToolbarButton
-          icon={<Settings size={18} />}
-          label="Settings"
-        />
-
+        <ToolbarButton icon={<Settings size={18} />} label="Settings" />
       </div>
-
     </header>
   );
 }
@@ -93,16 +102,19 @@ function ToolbarButton({
   icon,
   label,
   onClick,
+  className = "",
 }: {
   icon: React.ReactNode;
   label: string;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  className?: string;
 }) {
   return (
     <button
+      type="button"
       title={label}
       onClick={onClick}
-      className="flex h-9 w-9 items-center justify-center rounded-md text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+      className={`flex h-9 w-9 items-center justify-center rounded-md text-zinc-300 transition hover:bg-zinc-800 hover:text-white ${className}`}
     >
       {icon}
     </button>
@@ -110,9 +122,7 @@ function ToolbarButton({
 }
 
 function Divider() {
-  return (
-    <div className="mx-2 h-6 w-px bg-zinc-700" />
-  );
+  return <div className="mx-2 h-6 w-px bg-zinc-700" />;
 }
 
 export default TopToolbar;

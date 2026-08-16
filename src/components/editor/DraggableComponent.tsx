@@ -11,42 +11,54 @@ function DraggableComponent({ component }: Props) {
   const selectedIds = useCircuitStore((state) => state.selectedIds);
   const selectComponent = useCircuitStore((state) => state.selectComponent);
   const moveComponent = useCircuitStore((state) => state.moveComponent);
-
+  const saveHistory = useCircuitStore((state) => state.saveHistory);
   const selected = selectedIds.includes(component.id);
 
   const [dragging, setDragging] = useState(false);
 
-  const offset = useRef({
-    x: 0,
-    y: 0,
-  });
+  // Track if pointer is actively pressed down
+  const isPointerDown = useRef(false);
 
-  const handlePointerDown = (
-    e: React.PointerEvent<HTMLDivElement>
-  ) => {
+  const offset = useRef({ x: 0, y: 0 });
+  const pointerStart = useRef({ x: 0, y: 0 });
 
-      console.log("pointer down");
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).dataset.pin === "true") {
+      return;
+    }
 
-  
-      if ((e.target as HTMLElement).dataset.pin === "true") {
-    return;
-  }
+    // Set pointer active state
+    isPointerDown.current = true;
 
     selectComponent(component.id);
-
-    setDragging(true);
 
     offset.current = {
       x: e.clientX - component.position.x,
       y: e.clientY - component.position.y,
     };
 
-   };
+    pointerStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+    };
+  };
 
-  const handlePointerMove = (
-    e: React.PointerEvent<HTMLDivElement>
-  ) => {
-    if (!dragging) return;
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Return early if pointer is not pressed down
+    if (!isPointerDown.current) return;
+
+    if (!dragging) {
+      const dx = e.clientX - pointerStart.current.x;
+      const dy = e.clientY - pointerStart.current.y;
+
+      if (Math.hypot(dx, dy) < 4) {
+        return;
+      }
+
+      e.currentTarget.setPointerCapture(e.pointerId);
+      saveHistory();
+      setDragging(true);
+    }
 
     moveComponent(component.id, {
       x: e.clientX - offset.current.x,
@@ -54,12 +66,14 @@ function DraggableComponent({ component }: Props) {
     });
   };
 
-  const handlePointerUp = (
-    e: React.PointerEvent<HTMLDivElement>
-  ) => {
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Reset active pointer state
+    isPointerDown.current = false;
     setDragging(false);
 
-    e.currentTarget.releasePointerCapture(e.pointerId);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
   };
 
   return (
@@ -70,12 +84,12 @@ function DraggableComponent({ component }: Props) {
           : "hover:ring-1 hover:ring-zinc-500"
       }`}
       style={{
-        left: component.position.x,
-        top: component.position.y,
+        transform: `translate(${component.position.x}px, ${component.position.y}px)`,
       }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
     >
       <ComponentRenderer component={component} />
     </div>

@@ -46,7 +46,29 @@ deleteSelected: () => void;
   moveComponent: (id: string, position: Point) => void;
   setActiveTool: (tool: ToolType) => void;
 toggleSwitch: (id: string) => void;
-evaluateCircuit: () => void;}
+evaluateCircuit: () => void;
+saveHistory: () => void;
+pressButton: (id: string) => void;
+releaseButton: (id: string) => void;
+startClock: (id: string) => void;
+stopClock: (id: string) => void;
+isRunning: boolean;
+
+runCircuit: () => void;
+stopCircuit: () => void;
+resetCircuit: () => void;
+
+}
+
+const clockIntervals = new Map<string, number>();
+
+const createSnapshot = (
+  state: CircuitStore
+): CircuitSnapshot => ({
+  components: structuredClone(state.components),
+  wires: structuredClone(state.wires),
+  selectedIds: [...state.selectedIds],
+});
 
 export const useCircuitStore = create<CircuitStore>((set,get) => ({
   components: [],
@@ -55,6 +77,7 @@ export const useCircuitStore = create<CircuitStore>((set,get) => ({
   activeTool: "SELECT",
   activeWire: null,
   selectedWireId: null,
+  isRunning: false,
 
   history: [],
   future: [],
@@ -65,11 +88,7 @@ export const useCircuitStore = create<CircuitStore>((set,get) => ({
 
       const previous = state.history[state.history.length - 1];
 
-      const current: CircuitSnapshot = {
-        components: state.components,
-        wires: state.wires,
-        selectedIds: state.selectedIds,
-      };
+const current = createSnapshot(state);
 
       return {
         ...state,
@@ -87,11 +106,7 @@ export const useCircuitStore = create<CircuitStore>((set,get) => ({
 
       const next = state.future[0];
 
-      const current: CircuitSnapshot = {
-        components: state.components,
-        wires: state.wires,
-        selectedIds: state.selectedIds,
-      };
+const current = createSnapshot(state);
 
       return {
         ...state,
@@ -105,36 +120,26 @@ export const useCircuitStore = create<CircuitStore>((set,get) => ({
 
   addComponent: (component) =>
     set((state) => ({
-      history: [
-        ...state.history,
-        {
-          components: state.components,
-          wires: state.wires,
-          selectedIds: state.selectedIds,
-        },
-      ],
+history: [
+  ...state.history,
+  createSnapshot(state),
+],
       future: [],
       components: [...state.components, component],
     })),
 
-  removeComponent: (id) =>
-    set((state) => ({
-      history: [
-        ...state.history,
-        {
-          components: state.components,
-          wires: state.wires,
-          selectedIds: state.selectedIds,
-        },
-      ],
-      future: [],
-      components: state.components.filter((c) => c.id !== id),
-      wires: state.wires.filter(
-        (wire) =>
-          wire.from.componentId !== id &&
-          wire.to.componentId !== id
-      ),
-    })),
+removeComponent: (id) => {
+  get().stopClock(id); // Stop clock interval if component is deleted
+
+  set((state) => ({
+    history: [...state.history, createSnapshot(state)],
+    future: [],
+    components: state.components.filter((c) => c.id !== id),
+    wires: state.wires.filter(
+      (wire) => wire.from.componentId !== id && wire.to.componentId !== id
+    ),
+  }));
+},
 
   selectComponent: (id) =>
     set({
@@ -143,15 +148,15 @@ export const useCircuitStore = create<CircuitStore>((set,get) => ({
 
   moveComponent: (id, position) =>
     set((state) => ({
-      history: [
-        ...state.history,
-        {
-          components: state.components,
-          wires: state.wires,
-          selectedIds: state.selectedIds,
-        },
-      ],
-      future: [],
+      // history: [
+      //   ...state.history,
+      //   {
+      //     components: state.components,
+      //     wires: state.wires,
+      //     selectedIds: state.selectedIds,
+      //   },
+      // ],
+      // future: [],
       components: state.components.map((component) =>
         component.id === id
           ? { ...component, position }
@@ -179,14 +184,10 @@ export const useCircuitStore = create<CircuitStore>((set,get) => ({
 
   addWire: (wire) =>
     set((state) => ({
-      history: [
-        ...state.history,
-        {
-          components: state.components,
-          wires: state.wires,
-          selectedIds: state.selectedIds,
-        },
-      ],
+history: [
+  ...state.history,
+  createSnapshot(state),
+],
       future: [],
       wires: [...state.wires, wire],
       activeWire: null,
@@ -228,14 +229,10 @@ export const useCircuitStore = create<CircuitStore>((set,get) => ({
     return {
       ...state,
 
-      history: [
-        ...state.history,
-        {
-          components: state.components,
-          wires: state.wires,
-          selectedIds: state.selectedIds,
-        },
-      ],
+history: [
+  ...state.history,
+  createSnapshot(state),
+],
 
       future: [],
 
@@ -542,19 +539,148 @@ toggleSwitch: (id) => {
     return {
       components,
 
-      history: [
-        ...state.history,
-        {
-          components: state.components,
-          wires: state.wires,
-          selectedIds: state.selectedIds,
-        },
-      ],
+history: [
+  ...state.history,
+  createSnapshot(state),
+],
 
       future: [],
     };
   });
 
+if (get().isRunning) {
   get().evaluateCircuit();
+}},
+saveHistory: () =>
+  set((state) => ({
+history: [
+  ...state.history,
+  createSnapshot(state),
+],
+    future: [],
+  })),
+
+  pressButton: (id) => {
+  set((state) => ({
+    components: state.components.map((component) =>
+      component.id === id
+        ? {
+            ...component,
+            outputs: component.outputs.map((o) => ({
+              ...o,
+              value: 1 as LogicValue ,
+            })),
+          }
+        : component
+    ),
+  }));
+
+if (get().isRunning) {
+  get().evaluateCircuit();
+}},
+
+releaseButton: (id) => {
+  set((state) => ({
+    components: state.components.map((component) =>
+      component.id === id
+        ? {
+            ...component,
+            outputs: component.outputs.map((o) => ({
+              ...o,
+              value: 0 as LogicValue,
+            })),
+          }
+        : component 
+    ),
+  }));
+
+if (get().isRunning) {
+  get().evaluateCircuit();
+}},
+
+// --- Refactored Clock & Execution Handlers ---
+
+startClock: (id) => {
+  // Prevent duplicate intervals for the same component
+  if (clockIntervals.has(id)) return;
+
+  const interval = window.setInterval(() => {
+    // Only continue running if simulation is active
+    if (!get().isRunning) {
+      get().stopClock(id);
+      return;
+    }
+
+    set((state) => {
+      const components = state.components.map((component) => {
+        if (component.id !== id) return component;
+
+        return {
+          ...component,
+          outputs: component.outputs.map((output) => ({
+            ...output,
+            value: (output.value === 1 ? 0 : 1) as LogicValue,
+          })),
+        };
+      });
+
+      return { components };
+    });
+
+    get().evaluateCircuit();
+  }, 500);
+
+  clockIntervals.set(id, interval);
 },
+
+stopClock: (id) => {
+  const interval = clockIntervals.get(id);
+  if (interval !== undefined) {
+    clearInterval(interval);
+    clockIntervals.delete(id);
+  }
+},
+
+runCircuit: () => {
+  // Prevent multiple concurrent execution loops
+  if (get().isRunning) return;
+
+  set({ isRunning: true });
+
+  get().evaluateCircuit();
+
+  get().components.forEach((component) => {
+    if (component.type === "CLOCK") {
+      get().startClock(component.id);
+    }
+  });
+},
+
+stopCircuit: () => {
+  // 1. Clear ALL active intervals globally to stop lingering clocks
+  clockIntervals.forEach((interval) => clearInterval(interval));
+  clockIntervals.clear();
+
+  // 2. Update running state
+  set({ isRunning: false });
+},
+
+resetCircuit: () => {
+  get().stopCircuit();
+
+  set((state) => ({
+    components: state.components.map((component) => ({
+      ...component,
+      inputs: component.inputs.map((pin) => ({
+        ...pin,
+        value: 0 as LogicValue,
+      })),
+      outputs: component.outputs.map((pin) => ({
+        ...pin,
+        value: 0 as LogicValue,
+      })),
+    })),
+  }));
+},
+
 }));

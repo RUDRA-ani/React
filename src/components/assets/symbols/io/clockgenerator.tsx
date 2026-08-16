@@ -1,8 +1,8 @@
-import type { SymbolProps } from "../types";
+import type { SymbolProps } from "../../types";
 
 type ClockProps = SymbolProps & {
   running?: boolean;
-};
+onClick?: (e: React.MouseEvent<SVGSVGElement>) => void;};
 
 export function ClockGenerator({
   width = 80,
@@ -10,6 +10,7 @@ export function ClockGenerator({
   stroke = "#ffffff",
   strokeWidth = 2,
   running = true,
+  onClick,
 }: ClockProps) {
   return (
     <svg
@@ -17,6 +18,7 @@ export function ClockGenerator({
       height={height}
       viewBox="0 0 80 50"
       fill="none"
+      onClick={onClick}
     >
       <rect
         x="10"

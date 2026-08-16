@@ -18,7 +18,6 @@ import { useCircuitStore } from "@/store";
 
 import Pin from "./Pin";
 import type { CircuitComponent } from "@/store/type";
-
 interface Props {
   component: CircuitComponent;
 }
@@ -27,6 +26,21 @@ function ComponentRenderer({ component }: Props) {
   const toggleSwitch = useCircuitStore(
     (state) => state.toggleSwitch
   );
+  const pressButton = useCircuitStore(
+  (state) => state.pressButton
+);
+
+const releaseButton = useCircuitStore(
+  (state) => state.releaseButton
+);
+
+const startClock = useCircuitStore(
+  (state) => state.startClock
+);
+
+const stopClock = useCircuitStore(
+  (state) => state.stopClock
+);
 
   let Gate: React.ElementType;
 
@@ -86,63 +100,70 @@ function ComponentRenderer({ component }: Props) {
     default:
       return null;
   }
-console.log(component.type);
-  return (
-<div className="relative">
-  {component.type === "SWITCH" ? (
-<Switch
-  state={component.outputs[0].value === 1}
-  onClick={(e) => {
-    e.stopPropagation();
+ return (
+  <div className="relative">
+    {component.type === "SWITCH" ? (
+      <Switch
+        state={component.outputs[0].value === 1}
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleSwitch(component.id);
+        }}
+      />
+    ) : component.type === "BUTTON" ? (
+      <Button
+        pressed={component.outputs[0].value === 1}
+        onPointerDown={(e) => {
+          // e.stopPropagation();
+          pressButton(component.id);
+        }}
+        onPointerUp={(e) => {
+          // e.stopPropagation();
+          releaseButton(component.id);
+        }}
+      />
+    ) : component.type === "CLOCK" ? (
+  <ClockGenerator
+    running={component.outputs[0].value === 1}
+    onClick={(e) => {
+      e.stopPropagation();
 
-    toggleSwitch(component.id);
-
-    setTimeout(() => {
-      const component = useCircuitStore
-        .getState()
-        .components.find((c) => c.id === component.id);
-
-      console.log(
-        "After toggle:",
-        component?.outputs[0].value
-      );
-    }, 0);
-  }}
-/>
- ) : component.type === "LED" ? (
-  <>
-    {console.log(
-      "LED input:",
-      component.inputs[0]?.value
-    )}
-
-    <Led
-      on={component.inputs[0]?.value === 1}
-    />
-  </>
+      if (component.outputs[0].value === 0) {
+        startClock(component.id);
+      } else {
+        stopClock(component.id);
+      }
+    }}
+  />
+) : component.type === "LED" ? (
+  <Led on={component.inputs[0]?.value === 1} />
+) : component.type === "PROBE" ? (
+  <LogicProbe
+    value={component.inputs[0]?.value ?? "X"}
+  />
 ) : (
-    <Gate />
-  )}
-      {/* <Gate/> */}
+  <Gate />
+)
+    }
+
+    {component.inputs.map((pin) => (
+      <Pin
+        key={pin.id}
+        pin={pin}
+        componentId={component.id}
+      />
+    ))}
+
+    {component.outputs.map((pin) => (
+      <Pin
+        key={pin.id}
+        pin={pin}
+        componentId={component.id}
+      />
+    ))}
+  </div>
+);
       
-
-      {component.inputs.map((pin) => (
-        <Pin
-          key={pin.id}
-          pin={pin}
-          componentId={component.id}
-        />
-      ))}
-
-      {component.outputs.map((pin) => (
-        <Pin
-          key={pin.id}
-          pin={pin}
-          componentId={component.id}
-        />
-      ))}
-    </div>
-  );
 }
 
 export default ComponentRenderer;
