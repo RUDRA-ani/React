@@ -1,4 +1,4 @@
-import type { CircuitComponent, GateType } from "@/store/type";
+import type { CircuitComponent, GateType,Pin } from "@/store/type";
 
 type PinTemplate = {
   inputs: Array<{ id: string; label: string; position: { x: number; y: number } }>;
@@ -68,7 +68,7 @@ const COMPONENT_SCHEMAS: Record<GateType, PinTemplate> = {
   },
   BUTTON: {
     inputs: [],
-    outputs: [{ id: "out", label: "OUT", position: { x: 60, y: 25 } }],
+    outputs: [{ id: "out", label: "OUT", position: { x: 60, y: 40 } }],
   },
   CLOCK: {
     inputs: [],
@@ -100,20 +100,26 @@ export function createComponent(
     throw new Error(`Unsupported component type: ${type}`);
   }
 
+  const inputs: Pin[] = schema.inputs.map((pin) => ({
+    ...pin,
+    type: "input",
+    value: 0,
+    connectedWireIds: [],
+  }));
+
+  const outputs: Pin[] = schema.outputs.map((pin) => ({
+    ...pin,
+    type: "output",
+    value: 0,
+    connectedWireIds: [],
+  }));
+
   return {
     id: crypto.randomUUID(),
     type,
     position: { x, y },
     rotation: 0,
-    inputs: schema.inputs.map((pin) => ({
-      ...pin,
-      type: "input",
-      value: 0,
-    })),
-    outputs: schema.outputs.map((pin) => ({
-      ...pin,
-      type: "output",
-      value: 0,
-    })),
+    inputs,
+    outputs,
   };
 }

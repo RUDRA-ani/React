@@ -1,3 +1,4 @@
+import { memo } from "react"; 
 import type { Pin as CircuitPin } from "@/store/type";
 import { useCircuitStore } from "@/store";
 
@@ -6,13 +7,14 @@ interface PinProps {
   componentId: string;
 }
 
-export default function Pin({ pin, componentId }: PinProps) {
+ function Pin({ pin, componentId }: PinProps) {
 const startWire = useCircuitStore((state) => state.startWire);
 const addWire = useCircuitStore((state) => state.addWire);
 const activeWire = useCircuitStore((state) => state.activeWire);
 
   return (
     <div
+    data-pin="true"
       className="absolute w-3 h-3 rounded-full bg-blue-500 border border-white cursor-pointer z-50"
       style={{
         left: pin.position.x - 6,
@@ -43,3 +45,4 @@ onClick={(e) => {
     />
   );
 }
+export default memo(Pin);

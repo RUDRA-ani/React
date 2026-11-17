@@ -2,8 +2,6 @@ import type { SymbolProps } from "../../types";
 
 type ButtonProps = SymbolProps & {
   pressed?: boolean;
-  onPointerDown?: React.PointerEventHandler<SVGSVGElement>;
-  onPointerUp?: React.PointerEventHandler<SVGSVGElement>;
 };
 
 export function Button({
@@ -12,46 +10,40 @@ export function Button({
   stroke = "#ffffff",
   strokeWidth = 2,
   pressed = false,
-  onPointerDown,
-  onPointerUp,
-}: ButtonProps)
- {
-  const y = pressed ? 18 : 10;
-
+}: ButtonProps) {
+  const y = pressed ? 18 : 0;
+console.log("Button pressed =", pressed);
   return (
-<svg
-  width={width}
-  height={height}
-  viewBox="0 0 70 50"
-  fill="none"
-  onPointerDown={onPointerDown}
-  onPointerUp={onPointerUp}
->
+    <svg
+      width={width}
+      height={height}
+      viewBox="0 0 70 50"
+      fill="none"
+      style={{ cursor: "pointer" }}
+    >
       <line
         x1="10"
         y1="40"
         x2="60"
         y2="40"
-        stroke={stroke}
+        stroke={pressed ? "#22c55e" : stroke}
         strokeWidth={strokeWidth}
       />
-
       <line
         x1="35"
-        y1={y}
+        y1={y + 10}
         x2="35"
         y2="40"
         stroke={stroke}
         strokeWidth={strokeWidth}
       />
-
       <rect
         x="25"
-        y="0"
+        y={y}
         width="20"
         height="10"
         rx="2"
-        fill="transparent"
+        fill={pressed ? "#22c55e" : "transparent"}
         stroke={stroke}
         strokeWidth={strokeWidth}
       />

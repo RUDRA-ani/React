@@ -31,6 +31,10 @@ function WireLayer() {
       y: component.position.y + pin.position.y,
     };
   };
+  const getOutputValue = (componentId: string, pinId: string) =>
+  components
+    .find((c) => c.id === componentId)
+    ?.outputs.find((p) => p.id === pinId)?.value ?? 0;
 
   return (
     <svg
@@ -55,31 +59,64 @@ function WireLayer() {
         return (
           <g key={wire.id}>
             {/* Invisible click area */}
-            <line
-              x1={start.x}
-              y1={start.y}
-              x2={end.x}
-              y2={end.y}
-              stroke="transparent"
-              strokeWidth={12}
-              pointerEvents="stroke"
-              onClick={(e) => {
-                e.stopPropagation();
-                console.log("Wire clicked", wire.id);
-                selectWire(wire.id);
-              }}
-            />
+{(() => {
+  const d = `M ${start.x} ${start.y} C ${start.x + 60} ${start.y}, ${end.x - 60} ${end.y}, ${end.x} ${end.y}`;
+  const on = getOutputValue(wire.from.componentId, wire.from.pinId) === 1;
+  return (
+    <>
+      {/* invisible click area */}
+      <path
+        d={d}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={12}
+        pointerEvents="stroke"
+        onClick={(e) => {
+          e.stopPropagation();
+          selectWire(wire.id);
+        }}
+      />
+      {/* visible wire */}
+      <path
+        d={d}
+        fill="none"
+        stroke={selected ? "#3b82f6" : on ? "#22c55e" : "#71717a"}
+        strokeWidth={selected ? 4 : 2}
+        pointerEvents="none"
+      />
+    </>
+  );
+})()}
 
             {/* Visible wire */}
-            <line
-              x1={start.x}
-              y1={start.y}
-              x2={end.x}
-              y2={end.y}
-              stroke={selected ? "#3b82f6" : "white"}
-              strokeWidth={selected ? 4 : 2}
-              pointerEvents="none"
-            />
+{(() => {
+  const d = `M ${start.x} ${start.y} C ${start.x + 60} ${start.y}, ${end.x - 60} ${end.y}, ${end.x} ${end.y}`;
+  const on = getOutputValue(wire.from.componentId, wire.from.pinId) === 1;
+  return (
+    <>
+      {/* invisible click area */}
+      <path
+        d={d}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={12}
+        pointerEvents="stroke"
+        onClick={(e) => {
+          e.stopPropagation();
+          selectWire(wire.id);
+        }}
+      />
+      {/* visible wire */}
+      <path
+        d={d}
+        fill="none"
+        stroke={selected ? "#3b82f6" : on ? "#22c55e" : "#71717a"}
+        strokeWidth={selected ? 4 : 2}
+        pointerEvents="none"
+      />
+    </>
+  );
+})()}
           </g>
         );
       })}

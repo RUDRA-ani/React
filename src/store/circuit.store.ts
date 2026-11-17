@@ -4,8 +4,17 @@ import type {
   Point,
   Wire,
   LogicValue,
+  TextLabel
 } from "./type";
 export type ToolType = "SELECT" | "WIRE" | "LABEL";
+export type SimStatus = "STOPPED" | "RUNNING" | "PAUSED";
+
+const clearValues = (components: CircuitComponent[]): CircuitComponent[] =>
+  components.map((c) => ({
+    ...c,
+    inputs: c.inputs.map((p) => ({ ...p, value: 0 as LogicValue })),
+    outputs: c.outputs.map((p) => ({ ...p, value: 0 as LogicValue })),
+  }));
 
 interface ActiveWire {
   componentId: string;
@@ -39,6 +48,12 @@ deleteSelected: () => void;
   startWire: (componentId: string, pinId: string) => void;
   cancelWire: () => void;
   addWire: (wire: Wire) => void;
+  simStatus: SimStatus;
+runSimulation: () => void;
+pauseSimulation: () => void;
+stopSimulation: () => void;
+resetSimulation: () => void;
+tickClocks: () => void;
 
   addComponent: (component: CircuitComponent) => void;
   removeComponent: (id: string) => void;
@@ -47,28 +62,19 @@ deleteSelected: () => void;
   setActiveTool: (tool: ToolType) => void;
 toggleSwitch: (id: string) => void;
 evaluateCircuit: () => void;
-saveHistory: () => void;
-pressButton: (id: string) => void;
-releaseButton: (id: string) => void;
-startClock: (id: string) => void;
-stopClock: (id: string) => void;
-isRunning: boolean;
-
-runCircuit: () => void;
-stopCircuit: () => void;
-resetCircuit: () => void;
-
+pushHistory: () => void;
+loadCircuit: (
+  components: CircuitComponent[],
+  wires: Wire[],
+  labels?: TextLabel[]
+) => void;labels: TextLabel[];
+addLabel: (position: Point) => void;
+updateLabel: (id: string, patch: Partial<Omit<TextLabel, "id">>) => void;
+removeLabel: (id: string) => void;
+setButton: (id: string, value: LogicValue) => void;
 }
 
-const clockIntervals = new Map<string, number>();
 
-const createSnapshot = (
-  state: CircuitStore
-): CircuitSnapshot => ({
-  components: structuredClone(state.components),
-  wires: structuredClone(state.wires),
-  selectedIds: [...state.selectedIds],
-});
 
 export const useCircuitStore = create<CircuitStore>((set,get) => ({
   components: [],
@@ -77,10 +83,49 @@ export const useCircuitStore = create<CircuitStore>((set,get) => ({
   activeTool: "SELECT",
   activeWire: null,
   selectedWireId: null,
-  isRunning: false,
 
   history: [],
   future: [],
+
+  simStatus: "STOPPED",
+
+runSimulation: () => {
+  set({ simStatus: "RUNNING" });
+  get().evaluateCircuit();
+},
+
+pauseSimulation: () =>
+  set((state) =>
+    state.simStatus === "RUNNING" ? { simStatus: "PAUSED" } : {}
+  ),
+
+// Stop: back to edit mode, everything off (switches too)
+stopSimulation: () =>
+  set((state) => ({
+    simStatus: "STOPPED",
+    components: clearValues(state.components),
+  })),
+
+// Reset: everything back to 0, re-evaluates if running
+resetSimulation: () => {
+  set((state) => ({ components: clearValues(state.components) }));
+  if (get().simStatus === "RUNNING") get().evaluateCircuit();
+},
+
+tickClocks: () =>
+  set((state) => ({
+    components: state.components.map((c) =>
+      c.type === "CLOCK"
+        ? {
+            ...c,
+            outputs: c.outputs.map((o) => ({
+              ...o,
+              value: (o.value === 1 ? 0 : 1) as LogicValue,
+            })),
+          }
+        : c
+    ),
+  })),
 
   undo: () =>
     set((state) => {
@@ -88,7 +133,11 @@ export const useCircuitStore = create<CircuitStore>((set,get) => ({
 
       const previous = state.history[state.history.length - 1];
 
-const current = createSnapshot(state);
+      const current: CircuitSnapshot = {
+        components: state.components,
+        wires: state.wires,
+        selectedIds: state.selectedIds,
+      };
 
       return {
         ...state,
@@ -106,7 +155,11 @@ const current = createSnapshot(state);
 
       const next = state.future[0];
 
-const current = createSnapshot(state);
+      const current: CircuitSnapshot = {
+        components: state.components,
+        wires: state.wires,
+        selectedIds: state.selectedIds,
+      };
 
       return {
         ...state,
@@ -118,51 +171,101 @@ const current = createSnapshot(state);
       };
     }),
 
+    pushHistory: () =>
+  set((state) => ({
+    history: [
+      ...state.history,
+      {
+        components: state.components,
+        wires: state.wires,
+        selectedIds: state.selectedIds,
+      },
+    ],
+    future: [],
+  })),
+
+loadCircuit: (components, wires, labels = []) =>
+  set((state) => ({
+    history: [
+      ...state.history,
+      { components: state.components, wires: state.wires, selectedIds: state.selectedIds },
+    ],
+    future: [],
+    components,
+    wires,
+    labels,
+    selectedIds: [],
+    selectedWireId: null,
+    simStatus: "STOPPED",
+  })),
+
+  labels: [],
+
+addLabel: (position) =>
+  set((state) => ({
+    labels: [
+      ...state.labels,
+      { id: crypto.randomUUID(), text: "", position },
+    ],
+  })),
+
+updateLabel: (id, patch) =>
+  set((state) => ({
+    labels: state.labels.map((l) => (l.id === id ? { ...l, ...patch } : l)),
+  })),
+
+removeLabel: (id) =>
+  set((state) => ({
+    labels: state.labels.filter((l) => l.id !== id),
+  })),
+
+moveComponent: (id, position) =>
+  set((state) => ({
+    components: state.components.map((component) =>
+      component.id === id ? { ...component, position } : component
+    ),
+  })),
+
   addComponent: (component) =>
     set((state) => ({
-history: [
-  ...state.history,
-  createSnapshot(state),
-],
+      history: [
+        ...state.history,
+        {
+          components: state.components,
+          wires: state.wires,
+          selectedIds: state.selectedIds,
+        },
+      ],
       future: [],
       components: [...state.components, component],
     })),
 
-removeComponent: (id) => {
-  get().stopClock(id); // Stop clock interval if component is deleted
-
-  set((state) => ({
-    history: [...state.history, createSnapshot(state)],
-    future: [],
-    components: state.components.filter((c) => c.id !== id),
-    wires: state.wires.filter(
-      (wire) => wire.from.componentId !== id && wire.to.componentId !== id
-    ),
-  }));
-},
+  removeComponent: (id) =>
+    set((state) => ({
+      history: [
+        ...state.history,
+        {
+          components: state.components,
+          wires: state.wires,
+          selectedIds: state.selectedIds,
+        },
+      ],
+      future: [],
+      components: state.components.filter((c) => c.id !== id),
+      wires: state.wires.filter(
+        (wire) =>
+          wire.from.componentId !== id &&
+          wire.to.componentId !== id
+      ),
+    })),
 
   selectComponent: (id) =>
     set({
       selectedIds: [id],
+      selectedWireId: null,
     }),
 
-  moveComponent: (id, position) =>
-    set((state) => ({
-      // history: [
-      //   ...state.history,
-      //   {
-      //     components: state.components,
-      //     wires: state.wires,
-      //     selectedIds: state.selectedIds,
-      //   },
-      // ],
-      // future: [],
-      components: state.components.map((component) =>
-        component.id === id
-          ? { ...component, position }
-          : component
-      ),
-    })),
+
 
   setActiveTool: (tool) =>
     set({
@@ -184,10 +287,14 @@ removeComponent: (id) => {
 
   addWire: (wire) =>
     set((state) => ({
-history: [
-  ...state.history,
-  createSnapshot(state),
-],
+      history: [
+        ...state.history,
+        {
+          components: state.components,
+          wires: state.wires,
+          selectedIds: state.selectedIds,
+        },
+      ],
       future: [],
       wires: [...state.wires, wire],
       activeWire: null,
@@ -229,10 +336,14 @@ history: [
     return {
       ...state,
 
-history: [
-  ...state.history,
-  createSnapshot(state),
-],
+      history: [
+        ...state.history,
+        {
+          components: state.components,
+          wires: state.wires,
+          selectedIds: state.selectedIds,
+        },
+      ],
 
       future: [],
 
@@ -495,192 +606,50 @@ evaluateCircuit: () =>
       }
     }
 
-    return {
-      components,
-    };
-  }),
-
-toggleSwitch: (id) => {
-  set((state) => {
-    const switchComponent = state.components.find(
-      (component) => component.id === id
-    );
-
-    if (
-      !switchComponent ||
-      switchComponent.type !== "SWITCH"
-    ) {
-      return {};
-    }
-
-    const newValue: LogicValue =
-      switchComponent.outputs[0]?.value === 1
-        ? 0
-        : 1;
-
-    const components: CircuitComponent[] =
-      state.components.map((component) => {
-        if (component.id !== id) {
-          return component;
-        }
-
-        return {
-          ...component,
-
-          outputs: component.outputs.map(
-            (output) => ({
-              ...output,
-              value: newValue,
-            })
-          ),
-        };
-      });
-
-    return {
-      components,
-
-history: [
-  ...state.history,
-  createSnapshot(state),
-],
-
-      future: [],
-    };
-  });
-
-if (get().isRunning) {
-  get().evaluateCircuit();
-}},
-saveHistory: () =>
-  set((state) => ({
-history: [
-  ...state.history,
-  createSnapshot(state),
-],
-    future: [],
-  })),
-
-  pressButton: (id) => {
-  set((state) => ({
-    components: state.components.map((component) =>
-      component.id === id
-        ? {
-            ...component,
-            outputs: component.outputs.map((o) => ({
-              ...o,
-              value: 1 as LogicValue ,
-            })),
-          }
-        : component
-    ),
-  }));
-
-if (get().isRunning) {
-  get().evaluateCircuit();
-}},
-
-releaseButton: (id) => {
-  set((state) => ({
-    components: state.components.map((component) =>
-      component.id === id
-        ? {
-            ...component,
-            outputs: component.outputs.map((o) => ({
-              ...o,
-              value: 0 as LogicValue,
-            })),
-          }
-        : component 
-    ),
-  }));
-
-if (get().isRunning) {
-  get().evaluateCircuit();
-}},
-
-// --- Refactored Clock & Execution Handlers ---
-
-startClock: (id) => {
-  // Prevent duplicate intervals for the same component
-  if (clockIntervals.has(id)) return;
-
-  const interval = window.setInterval(() => {
-    // Only continue running if simulation is active
-    if (!get().isRunning) {
-      get().stopClock(id);
-      return;
-    }
-
-    set((state) => {
-      const components = state.components.map((component) => {
-        if (component.id !== id) return component;
-
-        return {
-          ...component,
-          outputs: component.outputs.map((output) => ({
-            ...output,
-            value: (output.value === 1 ? 0 : 1) as LogicValue,
-          })),
-        };
-      });
-
-      return { components };
+    const same = components.every((c, i) => {
+      const o = state.components[i];
+      return (
+        c.inputs.every((p, j) => p.value === o.inputs[j].value) &&
+        c.outputs.every((p, j) => p.value === o.outputs[j].value)
+      );
     });
 
-    get().evaluateCircuit();
-  }, 500);
+    return same ? {} : { components };
+  }),
 
-  clockIntervals.set(id, interval);
-},
+ toggleSwitch: (id) =>
+  set((state) => {
+    if (state.simStatus !== "RUNNING") return {};
 
-stopClock: (id) => {
-  const interval = clockIntervals.get(id);
-  if (interval !== undefined) {
-    clearInterval(interval);
-    clockIntervals.delete(id);
+    return {
+      components: state.components.map((c) =>
+        c.id === id && c.type === "SWITCH"
+          ? {
+              ...c,
+              outputs: c.outputs.map((o) => ({
+                ...o,
+                value: (o.value === 1 ? 0 : 1) as LogicValue,
+              })),
+            }
+          : c
+      ),
+    };
+  }),
+  setButton: (id, value) =>
+  set((state) => {
+    console.log("setButton", id, value, state.simStatus, state.components.find(c => c.id === id)?.type);
+    // Pressing only works while running; releasing always works,
+    // so the button can't get stuck at 1 after Pause or Stop
+    if (value === 1 && state.simStatus !== "RUNNING") return {};
+
+    return {
+      components: state.components.map((c) =>
+        c.id === id && c.type === "BUTTON"
+          ? { ...c, outputs: c.outputs.map((o) => ({ ...o, value })) }
+          : c
+      ),
+    };
   }
-},
 
-runCircuit: () => {
-  // Prevent multiple concurrent execution loops
-  if (get().isRunning) return;
-
-  set({ isRunning: true });
-
-  get().evaluateCircuit();
-
-  get().components.forEach((component) => {
-    if (component.type === "CLOCK") {
-      get().startClock(component.id);
-    }
-  });
-},
-
-stopCircuit: () => {
-  // 1. Clear ALL active intervals globally to stop lingering clocks
-  clockIntervals.forEach((interval) => clearInterval(interval));
-  clockIntervals.clear();
-
-  // 2. Update running state
-  set({ isRunning: false });
-},
-
-resetCircuit: () => {
-  get().stopCircuit();
-
-  set((state) => ({
-    components: state.components.map((component) => ({
-      ...component,
-      inputs: component.inputs.map((pin) => ({
-        ...pin,
-        value: 0 as LogicValue,
-      })),
-      outputs: component.outputs.map((pin) => ({
-        ...pin,
-        value: 0 as LogicValue,
-      })),
-    })),
-  }));
-},
-
+),
 }));

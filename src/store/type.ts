@@ -53,4 +53,10 @@ export interface Wire {
     componentId: string;
     pinId: string;
   };
+  
+}
+export interface TextLabel {
+  id: string;
+  text: string;
+  position: Point;
 }

@@ -169,7 +169,7 @@ export function EditorSidebar() {
           onSelect={(type) => addComponent(createComponent(type, 200, 200))}
         />
 
-        {/* <UtilityGroup label="Utilities" items={utilityComponents} /> */}
+        <UtilityGroup label="Utilities" items={utilityComponents} />
       </SidebarContent>
     </ShellSidebar>
   );
